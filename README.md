@@ -6,7 +6,7 @@ a 3-day study plan.
 
 🔗 **Live demo:** [interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app](https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/)
 
-![App demo main ](screenshots/demo main .png)
+![App Demo](screenshots/demo-main.png)
 ![App results screenshot](screenshots/demo-results.png)
 
 ## Problem
