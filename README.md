@@ -4,6 +4,10 @@ A lightweight agentic AI tool that turns any job description into a full
 interview prep kit: key requirements, likely questions, sample answers, and
 a 3-day study plan.
 
+🔗 **Live demo:** [interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app](https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/)
+
+![App screenshot](screenshots/demo.png)
+
 ## Problem
 Preparing for an interview usually means manually re-reading a job
 description, guessing what might be asked, and researching answers one by
