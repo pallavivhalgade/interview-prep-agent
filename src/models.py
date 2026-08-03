@@ -13,5 +13,13 @@ from dataclasses import dataclass
 class InterviewPrepResult:
     requirements: str
     questions: str
+    reviewed_questions: str
     answers: str
     study_plan: str
+
+
+@dataclass
+class SkillGapResult:
+    matching_skills: str
+    missing_skills: str
+    suggestion: str

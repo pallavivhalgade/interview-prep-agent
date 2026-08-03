@@ -2,6 +2,7 @@ import streamlit as st
 from src.agent import run_pipeline
 from src.parser import extract_resume_text
 from src.utils import compute_match_score
+from src.agent import analyze_skill_gap
 
 st.set_page_config(
     page_title="Interview Prep Agent",
@@ -141,12 +142,15 @@ if generate:
     else:
         match_score = None
 
-        # --- Resume match score (only if a resume was uploaded) ---
+        skill_gap = None
+
+        # --- Resume match score + skill gap (only if a resume was uploaded) ---
         if resume_file is not None:
             with st.spinner("Reading resume and computing match score..."):
                 try:
                     resume_text = extract_resume_text(resume_file)
                     match_score = compute_match_score(resume_text, job_description)
+                    skill_gap = analyze_skill_gap(resume_text, job_description)
                 except Exception as e:
                     st.error(f"Couldn't process the resume: {e}")
 
@@ -164,6 +168,13 @@ if generate:
                 f'<div class="match-score">{match_score}%</div></div></div>',
                 unsafe_allow_html=True,
             )
+
+        # --- Skill gap display ---
+        if skill_gap is not None:
+            with st.expander("📊 Skill Gap Analysis"):
+                st.markdown(f"**Matching skills:**\n\n{skill_gap.matching_skills}")
+                st.markdown(f"**Missing skills:**\n\n{skill_gap.missing_skills}")
+                st.markdown(f"**Suggestion:**\n\n{skill_gap.suggestion}")
 
         tab1, tab2, tab3, tab4 = st.tabs(
             ["📋 Requirements", "❓ Questions (Reviewed)", "💡 Answers", "📅 Study Plan"]
