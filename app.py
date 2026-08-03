@@ -1,6 +1,6 @@
-import time
 import streamlit as st
 from src.agent import run_pipeline
+from src.parser import extract_resume_text
 
 st.set_page_config(
     page_title="Interview Prep Agent",
@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# Custom CSS — cards, gradients, spacing, animation
+# Custom CSS
 # ============================================================
 st.markdown(
     """
@@ -70,37 +70,6 @@ st.markdown(
             padding: 1.4rem 1.6rem;
             margin-bottom: 1rem;
         }
-        .result-card h4 {
-            margin-top: 0;
-            color: #e6edf3;
-        }
-        .card-label {
-            display: inline-block;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            color: #a78bfa;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-        .step-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 1.2rem 0;
-        }
-        .step-item {
-            text-align: center;
-            flex: 1;
-            font-size: 0.78rem;
-            color: #6b7280;
-        }
-        .step-item.active {
-            color: #a78bfa;
-            font-weight: 700;
-        }
-        .step-item.done {
-            color: #34d399;
-        }
         footer {visibility: hidden;}
     </style>
     """,
@@ -113,11 +82,11 @@ st.markdown(
 st.markdown(
     """
     <div class="hero">
-        <span class="badge">AGENTIC AI · 4-STEP PIPELINE</span>
+        <span class="badge">AGENTIC AI · 5-STEP PIPELINE + REVIEWER</span>
         <h1>🎯 Interview Prep Agent</h1>
-        <p>Paste any job description. The agent extracts what matters, predicts
-        likely questions, drafts sample answers, and builds a study plan —
-        automatically.</p>
+        <p>Paste any job description. The agent extracts what matters, drafts
+        questions, has a Reviewer Agent sharpen them, then builds sample
+        answers and a study plan — automatically.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -126,13 +95,18 @@ st.markdown(
 st.write("")
 
 # ============================================================
-# Input
+# Inputs
 # ============================================================
 job_description = st.text_area(
     "Job description",
-    height=220,
+    height=200,
     placeholder="Paste the full job description here...",
     label_visibility="collapsed",
+)
+
+resume_file = st.file_uploader(
+    "Upload your resume (optional, for future match scoring)",
+    type=["pdf", "docx"],
 )
 
 col1, col2 = st.columns([3, 1])
@@ -140,6 +114,17 @@ with col1:
     generate = st.button("✨ Generate Interview Prep", type="primary")
 with col2:
     st.caption(f"{len(job_description)} characters")
+
+# ============================================================
+# Resume preview (this step only extracts + previews - no matching yet)
+# ============================================================
+if resume_file is not None:
+    try:
+        resume_text = extract_resume_text(resume_file)
+        with st.expander("📄 Resume text extracted (preview)"):
+            st.text(resume_text[:1000] + ("..." if len(resume_text) > 1000 else ""))
+    except Exception as e:
+        st.error(f"Couldn't read that file: {e}")
 
 # ============================================================
 # Pipeline run
@@ -154,7 +139,7 @@ if generate:
         st.success("Your interview prep kit is ready ⬇️")
 
         tab1, tab2, tab3, tab4 = st.tabs(
-            ["📋 Requirements", "❓ Questions", "💡 Answers", "📅 Study Plan"]
+            ["📋 Requirements", "❓ Questions (Reviewed)", "💡 Answers", "📅 Study Plan"]
         )
 
         with tab1:
@@ -164,7 +149,7 @@ if generate:
             )
         with tab2:
             st.markdown(
-                f'<div class="result-card">{result.questions}</div>',
+                f'<div class="result-card">{result.reviewed_questions}</div>',
                 unsafe_allow_html=True,
             )
         with tab3:
@@ -183,8 +168,8 @@ if generate:
 ## Extracted Requirements
 {result.requirements}
 
-## Likely Interview Questions
-{result.questions}
+## Interview Questions (Reviewed)
+{result.reviewed_questions}
 
 ## Sample Answers / Frameworks
 {result.answers}
@@ -205,7 +190,7 @@ if generate:
 st.markdown(
     """
     <div style="text-align:center; margin-top: 3rem; color: #6b7280; font-size: 0.8rem;">
-        Built with Streamlit + Groq (Llama 3.1) · Agentic 4-step pipeline
+        Built with Streamlit + Groq (Llama 3.1) · Agentic 5-step pipeline with Reviewer Agent
     </div>
     """,
     unsafe_allow_html=True,
