@@ -1,6 +1,7 @@
 import streamlit as st
 from src.agent import run_pipeline
 from src.parser import extract_resume_text
+from src.utils import compute_match_score
 
 st.set_page_config(
     page_title="Interview Prep Agent",
@@ -70,6 +71,22 @@ st.markdown(
             padding: 1.4rem 1.6rem;
             margin-bottom: 1rem;
         }
+        .card-label {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #a78bfa;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .match-score {
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #34d399;
+            margin: 0.5rem 0;
+        }
         footer {visibility: hidden;}
     </style>
     """,
@@ -84,9 +101,9 @@ st.markdown(
     <div class="hero">
         <span class="badge">AGENTIC AI · 5-STEP PIPELINE + REVIEWER</span>
         <h1>🎯 Interview Prep Agent</h1>
-        <p>Paste any job description. The agent extracts what matters, drafts
-        questions, has a Reviewer Agent sharpen them, then builds sample
-        answers and a study plan — automatically.</p>
+        <p>Paste a job description and optionally your resume — get a
+        match score, reviewed interview questions, sample answers, and
+        a study plan.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -105,7 +122,7 @@ job_description = st.text_area(
 )
 
 resume_file = st.file_uploader(
-    "Upload your resume (optional, for future match scoring)",
+    "Upload your resume (optional — enables match score)",
     type=["pdf", "docx"],
 )
 
@@ -116,27 +133,37 @@ with col2:
     st.caption(f"{len(job_description)} characters")
 
 # ============================================================
-# Resume preview (this step only extracts + previews - no matching yet)
-# ============================================================
-if resume_file is not None:
-    try:
-        resume_text = extract_resume_text(resume_file)
-        with st.expander("📄 Resume text extracted (preview)"):
-            st.text(resume_text[:1000] + ("..." if len(resume_text) > 1000 else ""))
-    except Exception as e:
-        st.error(f"Couldn't read that file: {e}")
-
-# ============================================================
 # Pipeline run
 # ============================================================
 if generate:
     if not job_description.strip():
         st.warning("Please paste a job description first.")
     else:
+        match_score = None
+
+        # --- Resume match score (only if a resume was uploaded) ---
+        if resume_file is not None:
+            with st.spinner("Reading resume and computing match score..."):
+                try:
+                    resume_text = extract_resume_text(resume_file)
+                    match_score = compute_match_score(resume_text, job_description)
+                except Exception as e:
+                    st.error(f"Couldn't process the resume: {e}")
+
+        # --- Main pipeline ---
         with st.spinner("Agent is working through the job description..."):
             result = run_pipeline(job_description)
 
         st.success("Your interview prep kit is ready ⬇️")
+
+        # --- Match score display ---
+        if match_score is not None:
+            st.markdown(
+                f'<div class="result-card"><div style="text-align:center;">'
+                f'<div class="card-label">RESUME-JD MATCH</div>'
+                f'<div class="match-score">{match_score}%</div></div></div>',
+                unsafe_allow_html=True,
+            )
 
         tab1, tab2, tab3, tab4 = st.tabs(
             ["📋 Requirements", "❓ Questions (Reviewed)", "💡 Answers", "📅 Study Plan"]
