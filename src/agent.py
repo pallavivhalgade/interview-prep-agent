@@ -15,6 +15,7 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 
+from src.models import InterviewPrepResult
 from src.prompts import (
     EXTRACT_REQUIREMENTS_PROMPT,
     GENERATE_QUESTIONS_PROMPT,
@@ -61,16 +62,16 @@ def generate_study_plan(requirements: str) -> str:
     return _call_llm(GENERATE_STUDY_PLAN_PROMPT, requirements)
 
 
-def run_pipeline(job_description: str) -> dict:
-    """Runs all 4 steps in sequence and returns everything as a dict."""
+def run_pipeline(job_description: str) -> InterviewPrepResult:
+    """Runs all 4 steps in sequence and returns a structured result."""
     requirements = extract_requirements(job_description)
     questions = generate_questions(requirements)
     answers = generate_answers(questions)
     study_plan = generate_study_plan(requirements)
 
-    return {
-        "requirements": requirements,
-        "questions": questions,
-        "answers": answers,
-        "study_plan": study_plan,
-    }
+    return InterviewPrepResult(
+        requirements=requirements,
+        questions=questions,
+        answers=answers,
+        study_plan=study_plan,
+    )

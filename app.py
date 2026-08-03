@@ -1,11 +1,6 @@
 import time
 import streamlit as st
-from src.agent import (
-    extract_requirements,
-    generate_questions,
-    generate_answers,
-    generate_study_plan,
-)
+from src.agent import run_pipeline
 
 st.set_page_config(
     page_title="Interview Prep Agent",
@@ -20,7 +15,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-        /* Hero */
         .hero {
             text-align: center;
             padding: 1.5rem 0 0.8rem 0;
@@ -49,8 +43,6 @@ st.markdown(
             max-width: 540px;
             margin: 0 auto;
         }
-
-        /* Buttons */
         .stButton>button {
             width: 100%;
             border-radius: 10px;
@@ -67,14 +59,10 @@ st.markdown(
             box-shadow: 0 6px 20px rgba(139, 92, 246, 0.35);
             color: white;
         }
-
-        /* Input */
         .stTextArea textarea {
             border-radius: 12px;
             border: 1px solid #2a2e39;
         }
-
-        /* Result cards */
         .result-card {
             background: #161b22;
             border: 1px solid #2a2e39;
@@ -95,8 +83,6 @@ st.markdown(
             text-transform: uppercase;
             margin-bottom: 6px;
         }
-
-        /* Step tracker */
         .step-row {
             display: flex;
             justify-content: space-between;
@@ -115,7 +101,6 @@ st.markdown(
         .step-item.done {
             color: #34d399;
         }
-
         footer {visibility: hidden;}
     </style>
     """,
@@ -157,50 +142,14 @@ with col2:
     st.caption(f"{len(job_description)} characters")
 
 # ============================================================
-# Pipeline run with animated step tracker
+# Pipeline run
 # ============================================================
-STEPS = ["Requirements", "Questions", "Answers", "Study Plan"]
-
-
-def render_steps(active_index):
-    """active_index: -1 = none started, 0..3 = current step running, 4 = all done"""
-    html = '<div class="step-row">'
-    for i, label in enumerate(STEPS):
-        if i < active_index:
-            css_class = "done"
-            icon = "✓"
-        elif i == active_index:
-            css_class = "active"
-            icon = "●"
-        else:
-            css_class = ""
-            icon = "○"
-        html += f'<div class="step-item {css_class}">{icon}<br>{label}</div>'
-    html += "</div>"
-    return html
-
-
 if generate:
     if not job_description.strip():
         st.warning("Please paste a job description first.")
     else:
-        step_tracker = st.empty()
-
-        step_tracker.markdown(render_steps(0), unsafe_allow_html=True)
-        requirements = extract_requirements(job_description)
-
-        step_tracker.markdown(render_steps(1), unsafe_allow_html=True)
-        questions = generate_questions(requirements)
-
-        step_tracker.markdown(render_steps(2), unsafe_allow_html=True)
-        answers = generate_answers(questions)
-
-        step_tracker.markdown(render_steps(3), unsafe_allow_html=True)
-        study_plan = generate_study_plan(requirements)
-
-        step_tracker.markdown(render_steps(4), unsafe_allow_html=True)
-        time.sleep(0.3)
-        step_tracker.empty()
+        with st.spinner("Agent is working through the job description..."):
+            result = run_pipeline(job_description)
 
         st.success("Your interview prep kit is ready ⬇️")
 
@@ -210,38 +159,38 @@ if generate:
 
         with tab1:
             st.markdown(
-                f'<div class="result-card">{requirements}</div>',
+                f'<div class="result-card">{result.requirements}</div>',
                 unsafe_allow_html=True,
             )
         with tab2:
             st.markdown(
-                f'<div class="result-card">{questions}</div>',
+                f'<div class="result-card">{result.questions}</div>',
                 unsafe_allow_html=True,
             )
         with tab3:
             st.markdown(
-                f'<div class="result-card">{answers}</div>',
+                f'<div class="result-card">{result.answers}</div>',
                 unsafe_allow_html=True,
             )
         with tab4:
             st.markdown(
-                f'<div class="result-card">{study_plan}</div>',
+                f'<div class="result-card">{result.study_plan}</div>',
                 unsafe_allow_html=True,
             )
 
         full_report = f"""# Interview Prep Report
 
 ## Extracted Requirements
-{requirements}
+{result.requirements}
 
 ## Likely Interview Questions
-{questions}
+{result.questions}
 
 ## Sample Answers / Frameworks
-{answers}
+{result.answers}
 
 ## 3-Day Study Plan
-{study_plan}
+{result.study_plan}
 """
         st.download_button(
             label="⬇️ Download full report (Markdown)",
