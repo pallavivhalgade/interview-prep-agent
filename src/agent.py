@@ -10,17 +10,13 @@ A 5-step agentic pipeline:
 
 Plus a separate skill gap analysis function that compares an uploaded
 resume against the job description.
-
-Each step's output is fed as input into the next step - this chaining,
-plus the Reviewer step critiquing another step's output, is what makes
-this genuinely "agentic" rather than a single one-shot prompt.
 """
 
-import os
 import json
 from groq import Groq
-from dotenv import load_dotenv
 
+from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE
+from src.logger import get_logger
 from src.models import InterviewPrepResult, SkillGapResult
 from src.prompts import (
     EXTRACT_REQUIREMENTS_PROMPT,
@@ -31,23 +27,30 @@ from src.prompts import (
     SKILL_GAP_PROMPT,
 )
 
-load_dotenv()
-
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-MODEL = "llama-3.1-8b-instant"  # free, fast Groq model
+logger = get_logger(__name__)
+client = Groq(api_key=GROQ_API_KEY)
 
 
 def _call_llm(system_prompt: str, user_prompt: str) -> str:
-    """Single helper so every step calls the LLM the same way."""
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.4,
-    )
-    return response.choices[0].message.content
+    """Single helper so every step calls the LLM the same way, with
+    logging and a friendly error message if the call fails."""
+    logger.info(f"Calling LLM | prompt_preview='{system_prompt[:50]}...'")
+    try:
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=LLM_TEMPERATURE,
+        )
+        logger.info("LLM call succeeded")
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"LLM call failed: {e}")
+        raise RuntimeError(
+            "Something went wrong generating this section. Please try again."
+        ) from e
 
 
 def extract_requirements(job_description: str) -> str:
@@ -78,11 +81,15 @@ def generate_study_plan(requirements: str) -> str:
 
 def run_pipeline(job_description: str) -> InterviewPrepResult:
     """Runs all 5 steps in sequence and returns a structured result."""
+    logger.info("Starting interview prep pipeline")
+
     requirements = extract_requirements(job_description)
     questions = generate_questions(requirements)
     reviewed_questions = review_questions(questions)
     answers = generate_answers(reviewed_questions)
     study_plan = generate_study_plan(requirements)
+
+    logger.info("Pipeline completed successfully")
 
     return InterviewPrepResult(
         requirements=requirements,
@@ -95,12 +102,8 @@ def run_pipeline(job_description: str) -> InterviewPrepResult:
 
 def analyze_skill_gap(resume_text: str, job_description: str) -> SkillGapResult:
     """Compares resume text against the JD and returns a structured
-    breakdown of matching skills, missing skills, and one suggestion.
-
-    Asks the LLM for JSON so we can parse it reliably instead of
-    guessing at text structure. Falls back gracefully if the LLM
-    doesn't return valid JSON (rare, but LLMs aren't 100% reliable
-    about format instructions)."""
+    breakdown of matching skills, missing skills, and one suggestion."""
+    logger.info("Running skill gap analysis")
     combined_input = f"RESUME:\n{resume_text}\n\nJOB DESCRIPTION:\n{job_description}"
     raw_output = _call_llm(SKILL_GAP_PROMPT, combined_input)
 
@@ -112,6 +115,7 @@ def analyze_skill_gap(resume_text: str, job_description: str) -> SkillGapResult:
             suggestion=parsed.get("suggestion", ""),
         )
     except json.JSONDecodeError:
+        logger.warning("Skill gap response wasn't valid JSON, returning raw text")
         return SkillGapResult(
             matching_skills=raw_output,
             missing_skills="(could not parse structured response)",

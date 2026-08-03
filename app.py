@@ -155,8 +155,12 @@ if generate:
                     st.error(f"Couldn't process the resume: {e}")
 
         # --- Main pipeline ---
-        with st.spinner("Agent is working through the job description..."):
-            result = run_pipeline(job_description)
+        try:
+            with st.spinner("Agent is working through the job description..."):
+                result = run_pipeline(job_description)
+        except RuntimeError as e:
+            st.error(str(e))
+            st.stop()
 
         st.success("Your interview prep kit is ready ⬇️")
 
