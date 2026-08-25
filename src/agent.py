@@ -1,9 +1,14 @@
-"""Core agentic pipeline for Interview Prep Agent."""
+"""Core agentic pipeline for Interview Prep Agent.
+
+LangChain is used for prompt/model interaction through ChatGroq.
+LangGraph orchestration is kept separately in src/graph.py.
+"""
 
 import json
 import re
 
-from groq import Groq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
 
 from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE
 from src.logger import get_logger
@@ -18,24 +23,22 @@ from src.prompts import (
 )
 
 logger = get_logger(__name__)
-client = Groq(api_key=GROQ_API_KEY)
+
+llm = ChatGroq(
+    api_key=GROQ_API_KEY,
+    model=LLM_MODEL,
+    temperature=LLM_TEMPERATURE,
+)
 
 
-def _call_llm(instruction: str, input_text: str, max_tokens: int = 3000) -> str:
-    """Call Groq using one user message for reliable GPT-OSS behavior."""
+def _call_llm(
+    instruction: str,
+    input_text: str,
+    max_tokens: int = 3000,
+) -> str:
+    """Run one LLM step using LangChain with ChatGroq."""
     if not input_text or not str(input_text).strip():
         raise RuntimeError("The AI step received empty input.")
-
-    prompt = f"""TASK INSTRUCTIONS:
-{instruction}
-
-INPUT:
-{input_text}
-
-Follow the requested output format exactly.
-Do not ask the user for more information.
-Return the final requested content only.
-"""
 
     logger.info(
         "Calling LLM | model=%s | input_chars=%s | prompt_preview='%s...'",
@@ -44,27 +47,46 @@ Return the final requested content only.
         instruction.strip()[:60],
     )
 
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                (
+                    "You are part of an AI interview-preparation workflow. "
+                    "Follow the task instructions exactly. "
+                    "Do not ask the user for additional information. "
+                    "Return only the requested final output."
+                ),
+            ),
+            (
+                "human",
+                """TASK INSTRUCTIONS:
+{instruction}
+
+INPUT:
+{input_text}
+
+Follow the requested output format exactly.
+""",
+            ),
+        ]
+    )
+
     try:
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=LLM_TEMPERATURE,
-            max_tokens=max_tokens,
+        chain = prompt | llm.bind(max_tokens=max_tokens)
+        response = chain.invoke(
+            {
+                "instruction": instruction,
+                "input_text": str(input_text),
+            }
         )
 
-        content = response.choices[0].message.content
-
+        content = response.content
         if content is None or not str(content).strip():
             raise RuntimeError("The AI returned an empty response.")
 
         content = str(content).strip()
-
-        logger.info(
-            "LLM call succeeded | output_chars=%s | preview='%s...'",
-            len(content),
-            content[:100].replace("\n", " "),
-        )
-
+        logger.info("LLM call succeeded | output_chars=%s", len(content))
         return content
 
     except RuntimeError:
@@ -78,11 +100,9 @@ Return the final requested content only.
 
 def _clean_json_text(raw: str) -> str:
     text = raw.strip()
-
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
-
     return text.strip()
 
 
@@ -98,65 +118,44 @@ def _parse_json(raw: str) -> dict:
 
 def _parse_numbered_items(text: str) -> list[tuple[int, str]]:
     items = []
-
     for line in text.splitlines():
         match = re.match(r"^\s*(\d+)[\.\)]\s+(.+)$", line.strip())
         if match:
             items.append((int(match.group(1)), match.group(2).strip()))
-
     return items
 
 
 def _validate_questions(text: str) -> bool:
     items = _parse_numbered_items(text)
-
     if not 6 <= len(items) <= 10:
         return False
-
     if not all("[" in item and "]" in item for _, item in items):
         return False
-
     return True
 
 
 def _validate_answers(questions: str, answers: str) -> bool:
     question_items = _parse_numbered_items(questions)
     answer_items = _parse_numbered_items(answers)
-
-    if not question_items or len(question_items) != len(answer_items):
+    if not question_items:
         return False
-
-    q_numbers = [number for number, _ in question_items]
-    a_numbers = [number for number, _ in answer_items]
-
-    return q_numbers == a_numbers
+    if len(question_items) != len(answer_items):
+        return False
+    return [n for n, _ in question_items] == [n for n, _ in answer_items]
 
 
 def analyze_role(job_description: str) -> tuple[str, list[str], str]:
-    """Extract role title, required skills, and responsibility-level requirements."""
-    raw = _call_llm(
-        ANALYZE_ROLE_PROMPT,
-        job_description,
-        max_tokens=2200,
-    )
+    raw = _call_llm(ANALYZE_ROLE_PROMPT, job_description, max_tokens=2200)
     data = _parse_json(raw)
 
     role_title = str(data.get("role_title") or "Target Role").strip()
-
     required_skills = data.get("required_skills") or []
     if not isinstance(required_skills, list):
         required_skills = [str(required_skills)]
-
     required_skills = [
-        str(skill).strip()
-        for skill in required_skills
-        if str(skill).strip()
+        str(skill).strip() for skill in required_skills if str(skill).strip()
     ]
-
-    requirements = str(
-        data.get("requirements_markdown") or ""
-    ).strip()
-
+    requirements = str(data.get("requirements_markdown") or "").strip()
     return role_title, required_skills, requirements
 
 
@@ -165,12 +164,10 @@ def generate_questions(
     required_skills: list[str],
     focus_context: str = "",
 ) -> str:
-    """Generate 6-10 high-value questions; retry once if format is poor."""
     input_text = (
         f"ROLE REQUIREMENTS:\n{requirements}\n\n"
         f"REQUIRED SKILLS:\n{', '.join(required_skills)}"
     )
-
     if focus_context:
         input_text += f"\n\nCANDIDATE FOCUS CONTEXT:\n{focus_context}"
 
@@ -182,7 +179,6 @@ def generate_questions(
 
     if not _validate_questions(questions):
         logger.warning("Question output failed validation; retrying once")
-
         questions = _call_llm(
             GENERATE_QUESTIONS_PROMPT
             + "\nIMPORTANT: Return 6-10 numbered questions in the exact [Domain] format.",
@@ -194,48 +190,166 @@ def generate_questions(
         raise RuntimeError(
             "The AI did not return a valid high-priority interview-question set."
         )
-
     return questions
 
 
 def review_questions(questions: str) -> str:
-    """Review questions while preserving a valid 6-10 question set."""
     reviewed = _call_llm(
         REVIEW_QUESTIONS_PROMPT,
         questions,
         max_tokens=2300,
     )
-
     if not _validate_questions(reviewed):
         logger.warning(
             "Reviewer output failed validation; using original valid questions"
         )
         return questions
-
     return reviewed
 
 
-def generate_answers(questions: str) -> str:
-    """Generate exactly one answer per final question."""
+def _is_experience_question(question: str) -> bool:
+    """Return True when a question asks for the candidate's real experience."""
+    text = question.casefold()
+    patterns = [
+        "tell me about a time",
+        "describe a time",
+        "give an example",
+        "describe an example",
+        "provide an example",
+        "tell me about an experience",
+        "describe your experience",
+        "project where you",
+        "pipeline you built",
+        "model you built",
+        "system you built",
+        "solution you built",
+        "approach you used",
+        "techniques did you use",
+        "how you handled",
+        "how did you handle",
+        "how you dealt with",
+        "how did you deal with",
+        "time when you",
+        "when you had to",
+        "have you ever",
+        "what did you do",
+        "what was the outcome",
+        "what impact did it have",
+        "what factors influenced your decision",
+        "walk through a feature engineering pipeline you built",
+        "describe a scenario where you",
+        "provide an example of how you",
+        "explain a time you",
+    ]
+    return any(pattern in text for pattern in patterns)
+
+
+def _has_fake_experience(questions: str, answers: str) -> bool:
+    """Detect unsupported first-person stories in experience answers."""
+    question_items = dict(_parse_numbered_items(questions))
+    answer_items = dict(_parse_numbered_items(answers))
+
+    claim_patterns = [
+        r"\bi worked\b", r"\bi developed\b", r"\bi built\b",
+        r"\bi created\b", r"\bi implemented\b", r"\bi designed\b",
+        r"\bi identified\b", r"\bi improved\b", r"\bi increased\b",
+        r"\bi reduced\b", r"\bi achieved\b", r"\bi presented\b",
+        r"\bi deployed\b", r"\bi handled\b", r"\bi collaborated\b",
+        r"\bi resolved\b", r"\bour team\b", r"\bmy team\b",
+        r"\bmy manager\b", r"\bmy client\b", r"\bmy company\b",
+    ]
+
+    for number, question in question_items.items():
+        if not _is_experience_question(question):
+            continue
+        answer = answer_items.get(number, "").casefold()
+        if any(re.search(pattern, answer) for pattern in claim_patterns):
+            return True
+    return False
+
+
+def generate_answers(
+    questions: str,
+    focus_context: str = "",
+) -> str:
+    """Generate grounded answers without inventing candidate experience."""
+    candidate_context = (
+        focus_context.strip()
+        if focus_context and focus_context.strip()
+        else "No verified candidate-specific evidence was provided."
+    )
+
+    grounding_rules = """
+STRICT GROUNDING RULES:
+1. Never invent candidate experience, achievements, metrics, employers,
+   customers, stakeholders, deployments, projects, team sizes, or results.
+2. For technical questions, give a clear answer suitable for a fresher.
+3. For real-experience questions, use candidate facts only when explicitly
+   supported by VERIFIED CANDIDATE CONTEXT.
+4. If evidence is insufficient, return a STAR framework with placeholders:
+   Situation: [Insert a real situation]
+   Task: [State your real responsibility]
+   Action: [State what you actually did]
+   Result: [State the real outcome; do not invent metrics]
+5. Never invent percentages or performance improvements.
+6. Never write a fictional story and then ask the candidate to replace it.
+7. Preserve numbering and return exactly one answer per question.
+8. Do not claim personal use of a technology unless context supports it.
+9. For scenario or hypothetical questions that do not ask for verified past
+   experience, answer in hypothetical language such as "I would..." or
+   "A suitable approach would be...". Do not use past-tense claims like
+   "I built...", "I used...", or "I improved..." unless VERIFIED CANDIDATE
+   CONTEXT explicitly supports them.
+10. Treat phrases such as "pipeline you built", "describe a scenario where you",
+    "provide an example of how you", "how did you handle", and "what impact did
+    it have" as experience questions. If VERIFIED CANDIDATE CONTEXT does not
+    support the experience, return only STAR placeholders.
+11. For unsupported past-experience questions, return only the STAR
+    placeholders described above.
+"""
+
+    input_text = f"""INTERVIEW QUESTIONS:
+{questions}
+
+VERIFIED CANDIDATE CONTEXT:
+{candidate_context}
+
+{grounding_rules}"""
+
     answers = _call_llm(
         GENERATE_ANSWERS_PROMPT,
-        questions,
+        input_text,
         max_tokens=4200,
     )
 
-    if not _validate_answers(questions, answers):
-        logger.warning("Answer count mismatch; retrying once")
-
+    if not _validate_answers(questions, answers) or _has_fake_experience(
+        questions, answers
+    ):
+        logger.warning(
+            "Answer grounding/format validation failed; retrying once"
+        )
         answers = _call_llm(
             GENERATE_ANSWERS_PROMPT
-            + "\nIMPORTANT: Answer every numbered question exactly once.",
-            questions,
+            + """
+CRITICAL: Do not invent personal experience or metrics. For unsupported
+experience questions, return only a STAR framework with placeholders.
+For hypothetical/scenario questions, use "I would..." language instead of
+claiming the candidate already performed the action.
+Return exactly one numbered answer per numbered question.
+""",
+            input_text,
             max_tokens=4200,
         )
 
     if not _validate_answers(questions, answers):
         raise RuntimeError(
             "The AI did not return one answer for every interview question."
+        )
+
+    if _has_fake_experience(questions, answers):
+        raise RuntimeError(
+            "The AI attempted to generate unsupported candidate experience. "
+            "Please generate again."
         )
 
     return answers
@@ -247,13 +361,11 @@ def generate_study_plan(
     required_skills: list[str],
     focus_context: str = "",
 ) -> str:
-    """Generate a detailed, actionable 3-day plan."""
     input_text = (
         f"ROLE: {role_title}\n\n"
         f"REQUIREMENTS:\n{requirements}\n\n"
         f"REQUIRED SKILLS:\n{', '.join(required_skills)}"
     )
-
     if focus_context:
         input_text += f"\n\nCANDIDATE SKILL-GAP CONTEXT:\n{focus_context}"
 
@@ -268,11 +380,9 @@ def run_pipeline(
     job_description: str,
     focus_context: str = "",
 ) -> InterviewPrepResult:
-    """Run the full role-aware interview preparation pipeline."""
     logger.info("Starting interview prep pipeline")
 
     role_title, required_skills, requirements = analyze_role(job_description)
-
     logger.info(
         "Role analysis complete | role=%s | skills=%s",
         role_title,
@@ -295,7 +405,10 @@ def run_pipeline(
         len(_parse_numbered_items(reviewed_questions)),
     )
 
-    answers = generate_answers(reviewed_questions)
+    answers = generate_answers(
+        reviewed_questions,
+        focus_context=focus_context,
+    )
     logger.info(
         "Answer generation complete | answers=%s",
         len(_parse_numbered_items(answers)),
@@ -325,7 +438,6 @@ def analyze_skill_gap(
     resume_text: str,
     job_description: str,
 ) -> SkillGapResult:
-    """Compare resume against JD and return structured skill-gap analysis."""
     logger.info("Running skill gap analysis")
 
     raw = _call_llm(
@@ -335,7 +447,6 @@ def analyze_skill_gap(
     )
 
     data = _parse_json(raw)
-
     matching = data.get("matching_skills") or []
     missing = data.get("missing_skills") or []
 
@@ -346,14 +457,10 @@ def analyze_skill_gap(
 
     return SkillGapResult(
         matching_skills=[
-            str(skill).strip()
-            for skill in matching
-            if str(skill).strip()
+            str(skill).strip() for skill in matching if str(skill).strip()
         ],
         missing_skills=[
-            str(skill).strip()
-            for skill in missing
-            if str(skill).strip()
+            str(skill).strip() for skill in missing if str(skill).strip()
         ],
         priority_gap=str(data.get("priority_gap") or "").strip(),
         priority_reason=str(data.get("priority_reason") or "").strip(),

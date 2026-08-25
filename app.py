@@ -7,7 +7,8 @@ from typing import Any
 import streamlit as st
 from markdown import markdown
 
-from src.agent import analyze_skill_gap, run_pipeline
+from src.agent import analyze_skill_gap
+from src.graph import run_graph_pipeline
 from src.parser import extract_resume_text
 from src.utils import compute_match_score
 
@@ -332,7 +333,7 @@ def build_report(result: Any, match_score, skill_gap) -> str:
 
         parts.extend(
             [
-                "## Resume ↔ JD Analysis",
+                "## Resume - JD Analysis",
                 "",
                 f"**Resume–JD Match:** {match_score if match_score is not None else 'N/A'}%",
                 "",
@@ -395,35 +396,61 @@ def build_report(result: Any, match_score, skill_gap) -> str:
 
 
 def _pdf_safe_text(value: str) -> str:
-    """Convert common Unicode/Markdown characters into Helvetica-safe text."""
+    """Convert Unicode/Markdown into safe ASCII text for built-in PDF fonts."""
+    import unicodedata
+
     value = str(value)
+
     replacements = {
         "•": "-",
         "→": "->",
+        "←": "<-",
+        "↔": "<->",
+        "↗": "->",
         "✓": "Yes",
         "✔": "Yes",
         "✦": "*",
-        "↗": "->",
         "–": "-",
         "—": "-",
         "‑": "-",
+        "−": "-",
         "“": '"',
         "”": '"',
+        "„": '"',
         "’": "'",
         "‘": "'",
         "…": "...",
+        "≈": "~",
+        "≥": ">=",
+        "≤": "<=",
+        "×": "x",
+        "±": "+/-",
+        "°": " deg",
         "\u00a0": " ",
+        "\u202f": " ",
+        "\u2009": " ",
+        "\u2007": " ",
+        "\u200b": "",
+        "\ufeff": "",
     }
+
     for old, new in replacements.items():
         value = value.replace(old, new)
 
-    # Remove simple Markdown decoration for PDF.
     value = value.replace("**", "")
     value = value.replace("__", "")
     value = value.replace("`", "")
 
-    return value.encode("latin-1", "replace").decode("latin-1")
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(
+        ch for ch in value
+        if not unicodedata.combining(ch)
+    )
 
+    # Remove unsupported symbols instead of letting Helvetica show '?'.
+    value = value.encode("ascii", "ignore").decode("ascii")
+
+    return value.strip()
 
 def report_to_pdf(report_text: str) -> bytes:
     """Create a robust, readable PDF from the Markdown report."""
@@ -5808,7 +5835,7 @@ def show_workspace() -> None:
                             + ", ".join(missing_for_focus)
                         )
 
-                result = run_pipeline(
+                result = run_graph_pipeline(
                     jd_text,
                     focus_context=focus_context,
                 )
