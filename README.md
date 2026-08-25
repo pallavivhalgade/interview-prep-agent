@@ -4,10 +4,8 @@
 
 Instead of generating generic interview questions, the system analyzes the role, identifies the most relevant requirements, reviews the candidate's resume fit, detects skill gaps, generates high-priority interview questions, creates one answer for every question, and builds a practical 3-day preparation plan.
 
-🔗 **Live Demo:** [interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app](https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/)
-
+🔗 **Live Demo:** [Open Interview Prep Agent](https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/)
 ---
-
 ## ✨ What Makes This Project Different?
 
 Most interview-preparation tools behave like a single LLM prompt:
