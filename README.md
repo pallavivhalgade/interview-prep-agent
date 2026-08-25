@@ -5,7 +5,6 @@ An **AI-powered interview preparation application** built with **Python, Groq LL
 The application analyzes a **Job Description and an optional resume** to identify skill gaps, generate role-specific interview questions, review question quality, create grounded answer frameworks, and build a focused 3-day interview preparation plan.
 
 🔗 **Live Demo:** https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/
-
 ---
 
 ## ✨ Core Features
@@ -145,16 +144,17 @@ For hypothetical technical questions, answers can be framed as approaches rather
 | Language | Python |
 | Frontend | Streamlit |
 | Generative AI | Groq LLM |
-| Embeddings | Sentence Transformers |
+| LLM Integration | Groq API |
+| NLP / Embeddings | Sentence Transformers |
 | Similarity | Cosine Similarity / Scikit-learn |
 | Machine Learning | Scikit-learn |
+| Data Processing | Pandas, NumPy |
 | PDF Parsing | pdfplumber |
 | DOCX Parsing | python-docx |
 | PDF Generation | FPDF2 |
 | Testing | pytest |
 | Deployment | Streamlit Community Cloud |
 | Version Control | Git & GitHub |
-
 ---
 
 ## 📁 Project Structure
