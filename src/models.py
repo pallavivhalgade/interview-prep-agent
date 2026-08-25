@@ -1,25 +1,23 @@
-"""
-Typed data structures for the pipeline output.
+"""Typed data structures for Interview Prep Agent results."""
 
-Using a dataclass instead of a raw dict gives autocomplete, catches typos
-at development time, and makes it obvious what fields exist without
-having to trace through agent.py.
-"""
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class InterviewPrepResult:
-    requirements: str
-    questions: str
-    reviewed_questions: str
-    answers: str
-    study_plan: str
+    role_title: str
+    required_skills: list[str] = field(default_factory=list)
+    requirements: str = ""
+    questions: str = ""
+    reviewed_questions: str = ""
+    answers: str = ""
+    study_plan: str = ""
 
 
 @dataclass
 class SkillGapResult:
-    matching_skills: str
-    missing_skills: str
-    suggestion: str
+    matching_skills: list[str] = field(default_factory=list)
+    missing_skills: list[str] = field(default_factory=list)
+    priority_gap: str = ""
+    priority_reason: str = ""
+    suggestion: str = ""

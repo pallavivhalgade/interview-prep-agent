@@ -12,7 +12,7 @@ load_dotenv()
 
 # --- API ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-LLM_MODEL = "llama-3.1-8b-instant"
+LLM_MODEL = "openai/gpt-oss-20b"
 LLM_TEMPERATURE = 0.4
 
 # --- Embeddings (for Resume <-> JD matching) ---

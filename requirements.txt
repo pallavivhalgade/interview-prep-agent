@@ -7,3 +7,5 @@ python-docx==1.1.2
 sentence-transformers==3.1.1
 scikit-learn==1.5.2
 pytest==8.3.3
+fpdf2==2.7.9
+Markdown==3.7
