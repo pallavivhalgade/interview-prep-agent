@@ -1,14 +1,13 @@
-"""Core agentic pipeline for Interview Prep Agent.
+"""Core AI pipeline for Interview Prep Agent.
 
-LangChain is used for prompt/model interaction through ChatGroq.
-LangGraph orchestration is kept separately in src/graph.py.
+Groq is used directly for LLM inference. The application keeps the workflow
+explicit in Python so each processing stage is easy to test and explain.
 """
 
 import json
 import re
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
+from groq import Groq
 
 from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE
 from src.logger import get_logger
@@ -24,11 +23,7 @@ from src.prompts import (
 
 logger = get_logger(__name__)
 
-llm = ChatGroq(
-    api_key=GROQ_API_KEY,
-    model=LLM_MODEL,
-    temperature=LLM_TEMPERATURE,
-)
+client = Groq(api_key=GROQ_API_KEY)
 
 
 def _call_llm(
@@ -36,9 +31,20 @@ def _call_llm(
     input_text: str,
     max_tokens: int = 3000,
 ) -> str:
-    """Run one LLM step using LangChain with ChatGroq."""
+    """Run one LLM step directly through the Groq SDK."""
     if not input_text or not str(input_text).strip():
         raise RuntimeError("The AI step received empty input.")
+
+    prompt = f"""TASK INSTRUCTIONS:
+{instruction}
+
+INPUT:
+{input_text}
+
+Follow the requested output format exactly.
+Do not ask the user for additional information.
+Return only the requested final output.
+"""
 
     logger.info(
         "Calling LLM | model=%s | input_chars=%s | prompt_preview='%s...'",
@@ -47,41 +53,15 @@ def _call_llm(
         instruction.strip()[:60],
     )
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                (
-                    "You are part of an AI interview-preparation workflow. "
-                    "Follow the task instructions exactly. "
-                    "Do not ask the user for additional information. "
-                    "Return only the requested final output."
-                ),
-            ),
-            (
-                "human",
-                """TASK INSTRUCTIONS:
-{instruction}
-
-INPUT:
-{input_text}
-
-Follow the requested output format exactly.
-""",
-            ),
-        ]
-    )
-
     try:
-        chain = prompt | llm.bind(max_tokens=max_tokens)
-        response = chain.invoke(
-            {
-                "instruction": instruction,
-                "input_text": str(input_text),
-            }
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=LLM_TEMPERATURE,
+            max_tokens=max_tokens,
         )
 
-        content = response.content
+        content = response.choices[0].message.content
         if content is None or not str(content).strip():
             raise RuntimeError("The AI returned an empty response.")
 

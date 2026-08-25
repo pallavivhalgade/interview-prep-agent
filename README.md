@@ -1,8 +1,8 @@
 # 🎯 Interview Prep Agent
 
-> **Agentic AI Interview Preparation System built with LangChain, LangGraph, Groq LLM, Python, and Streamlit.**
+An **AI-powered interview preparation application** built with **Python, Groq LLM, Streamlit, and Sentence Transformers**.
 
-An AI-powered application that analyzes a **Job Description and an optional resume** to identify skill gaps, generate role-specific interview questions, review question quality, create grounded answer frameworks, and build a focused 3-day interview preparation plan.
+The application analyzes a **Job Description and an optional resume** to identify skill gaps, generate role-specific interview questions, review question quality, create grounded answer frameworks, and build a focused 3-day interview preparation plan.
 
 🔗 **Live Demo:** https://interview-prep-agent-94gjmmzu9q3w9gp4by8uan.streamlit.app/
 
@@ -11,55 +11,17 @@ An AI-powered application that analyzes a **Job Description and an optional resu
 ## ✨ Core Features
 
 - Extracts technical and soft-skill requirements from a Job Description
-- Generates **5 technical + 3 behavioral** interview questions
-- Uses an **AI Reviewer** to evaluate question quality
-- Supports **conditional question regeneration** when review validation fails
-- Generates grounded interview answers
-- Uses **STAR-style frameworks** when candidate experience is not sufficiently supported
-- Supports **PDF and DOCX resume uploads**
-- Performs **Resume–JD semantic matching**
-- Identifies matching skills and missing skills
-- Generates skill-gap preparation priorities
-- Creates a personalized **3-day interview preparation plan**
-- Exports the complete preparation as a downloadable PDF report
-
----
-
-## 🧠 LangChain + LangGraph Implementation
-
-The project uses **LangChain and LangGraph at a foundational level** to implement a structured agentic interview-preparation workflow.
-
-### LangChain
-
-**LangChain** is used as the LLM interaction layer and is implemented primarily in `src/agent.py`.
-
-It is used for:
-
-- `ChatPromptTemplate` for structured prompts
-- `ChatGroq` integration
-- LLM invocation
-- Passing structured instructions to the model
-- Role analysis
-- Interview question generation
-- Question review
-- Answer generation
-- Study-plan generation
-
-### LangGraph
-
-**LangGraph** is used for workflow orchestration and is implemented in `src/graph.py`.
-
-It is used for:
-
-- Shared workflow state
-- Workflow nodes
-- Connecting processing stages with edges
-- Controlling execution order
-- Conditional routing
-- Reviewer feedback loop
-- Question regeneration when validation fails
-
-The implementation focuses on the **core concepts of LangChain and LangGraph** rather than advanced autonomous multi-agent functionality.
+- Generates targeted technical and behavioral interview questions
+- Uses an AI review stage to improve question relevance and quality
+- Generates concise interview answer frameworks
+- Supports STAR-style behavioral answer preparation
+- Supports PDF and DOCX resume uploads
+- Performs Resume–JD semantic matching
+- Identifies matching and missing skills
+- Performs skill-gap analysis
+- Generates preparation priorities
+- Creates a personalized 3-day interview preparation plan
+- Exports preparation results as a downloadable PDF report
 
 ---
 
@@ -70,69 +32,67 @@ flowchart TD
 
     A["User"] --> B["Streamlit Application"]
 
-    B --> C["Resume Upload<br/>PDF / DOCX"]
-    B --> D["Job Description"]
+    B --> C["Job Description"]
+    B --> D["Resume Upload - PDF / DOCX"]
 
-    C --> E["Resume Parser"]
-    E --> F["Resume-JD Semantic Analysis"]
-    D --> F
+    D --> E["Resume Parser"]
 
-    F --> G["Match Score & Skill-Gap Analysis"]
+    C --> F["Resume-JD Analysis"]
+    E --> F
 
-    G --> H["LangGraph Orchestrator"]
-    D --> H
+    F --> G["Sentence Transformer Embeddings"]
+    G --> H["Cosine Similarity"]
+    H --> I["Semantic Match Score"]
 
-    H --> I["Role Analysis"]
-    I --> J["Question Generator"]
-    J --> K["Reviewer Agent"]
-    K --> L{"Quality Check"}
+    C --> J["Skill-Gap Analysis"]
+    E --> J
 
-    L -->|Needs Improvement| J
-    L -->|Approved| M["Grounded Answer Generator"]
+    C --> K["Role & Requirement Analysis"]
 
-    M --> N["3-Day Study Plan"]
-    N --> O["PDF Report"]
+    K --> L["Question Generator"]
+    L --> M["AI Reviewer"]
+    M --> N["Answer Generator"]
 
-    P["LangChain + ChatGroq"] -.-> I
-    P -.-> J
+    K --> O["3-Day Study Plan"]
+
+    P["Groq LLM"] -.-> J
     P -.-> K
+    P -.-> L
     P -.-> M
     P -.-> N
+    P -.-> O
+
+    I --> Q["Preparation Results"]
+    J --> Q
+    N --> Q
+    O --> Q
+
+    Q --> B
 ```
 
 ---
 
-## 🤖 Agentic Workflow
+## 🤖 AI Workflow
 
-The application uses a multi-stage workflow rather than sending the entire task through a single prompt.
+The application uses a structured multi-stage Python workflow rather than sending the entire interview-preparation task through one large prompt.
 
 ```text
-Resume + Job Description
-          ↓
-Resume-JD Analysis
-          ↓
-Skill-Gap Analysis
-          ↓
-LangGraph Workflow
-          ↓
-Role Analysis
-          ↓
+Job Description
+      ↓
+Role & Requirement Analysis
+      ↓
 Question Generation
-          ↓
-Question Review
-          ↓
-     Quality Check
-       ↙       ↘
- Regenerate   Continue
-     ↑           ↓
-     └────  Grounded Answers
-                 ↓
-          3-Day Study Plan
-                 ↓
-             PDF Report
+      ↓
+AI Review
+      ↓
+Answer Generation
+      ↓
+3-Day Study Plan
 ```
 
-The reviewer introduces a feedback loop. If the generated question set fails validation, **LangGraph can route execution back to the question-generation stage** before the workflow continues.
+Each stage performs a specific responsibility and passes its result to the next stage.
+
+The application uses the **Groq API directly** for LLM inference.
 
 ---
 
@@ -145,19 +105,18 @@ Resume + Job Description
           ↓
 Sentence Transformer
           ↓
-Embeddings
+Text Embeddings
           ↓
 Cosine Similarity
           ↓
 Semantic Match Score
 ```
 
-The analysis provides:
+The application also identifies:
 
-- Semantic match score
 - Matching skills
 - Missing skills
-- Skill-gap analysis
+- Skill gaps
 - Preparation priorities
 
 > **Note:** The match score represents semantic similarity. It is not an ATS score, recruiter decision, or hiring probability.
@@ -166,16 +125,16 @@ The analysis provides:
 
 ## 🛡️ Grounded Answer Generation
 
-The answer-generation stage includes safeguards to reduce unsupported candidate claims.
+The answer-generation stage uses available candidate context to reduce unsupported personal claims.
 
 For experience-based questions:
 
-- Candidate-specific claims should be supported by available context
+- Candidate-specific claims should be supported by available resume context
 - Unsupported achievements and metrics are avoided
-- The system avoids intentionally inventing employers, projects, results, or experiences
-- When sufficient candidate evidence is unavailable, a **STAR-style framework with placeholders** can be generated
+- The system avoids intentionally inventing employers, projects, or experience
+- STAR-style answer frameworks can be used when sufficient candidate evidence is unavailable
 
-For hypothetical technical questions, the system uses language such as **"I would..."** rather than falsely claiming that the candidate has already performed the task.
+For hypothetical technical questions, answers can be framed as approaches rather than claiming experience the candidate has not provided.
 
 ---
 
@@ -185,15 +144,13 @@ For hypothetical technical questions, the system uses language such as **"I woul
 |---|---|
 | Language | Python |
 | Frontend | Streamlit |
-| LLM Framework | **LangChain** |
-| Agent Orchestration | **LangGraph** |
-| LLM Integration | **ChatGroq** |
-| LLM Provider | Groq |
+| Generative AI | Groq LLM |
 | Embeddings | Sentence Transformers |
 | Similarity | Cosine Similarity / Scikit-learn |
+| Machine Learning | Scikit-learn |
 | PDF Parsing | pdfplumber |
 | DOCX Parsing | python-docx |
-| PDF Report Generation | FPDF2 |
+| PDF Generation | FPDF2 |
 | Testing | pytest |
 | Deployment | Streamlit Community Cloud |
 | Version Control | Git & GitHub |
@@ -212,7 +169,6 @@ interview-prep-agent/
 │
 ├── src/
 │   ├── agent.py
-│   ├── graph.py
 │   ├── prompts.py
 │   ├── parser.py
 │   ├── models.py
@@ -226,16 +182,15 @@ interview-prep-agent/
 
 ### Main Files
 
-- `app.py` — Streamlit UI, Resume–JD analysis, workflow execution, report display, and PDF generation
-- `src/agent.py` — **LangChain + ChatGroq** LLM integration, generation logic, grounding, and validation
-- `src/graph.py` — **LangGraph** workflow, shared state, nodes, edges, and conditional routing
-- `src/prompts.py` — prompts for individual AI stages
+- `app.py` — Streamlit user interface, analysis workflow, results, and report generation
+- `src/agent.py` — Groq LLM integration and AI pipeline logic
+- `src/prompts.py` — prompts used by the AI stages
 - `src/parser.py` — PDF and DOCX resume text extraction
 - `src/models.py` — structured application data models
 - `src/utils.py` — Resume–JD semantic similarity utilities
 - `src/config.py` — application configuration
 - `src/logger.py` — application logging
-- `tests/test_agent.py` — automated tests for core agent behavior
+- `tests/test_agent.py` — automated tests for core pipeline behavior
 
 ---
 
@@ -262,7 +217,7 @@ Create a `.env` file in the project root:
 GROQ_API_KEY=your_groq_api_key
 ```
 
-> Never commit the `.env` file or API keys to GitHub.
+> Never commit your `.env` file or API key to GitHub.
 
 ### 4. Start the Application
 
@@ -276,7 +231,7 @@ streamlit run app.py
 
 The project uses **pytest** for automated testing.
 
-LLM calls are mocked during unit tests so core pipeline behavior can be tested without depending on live API responses.
+LLM calls are mocked during unit tests so core pipeline behavior can be tested without depending on live Groq API responses.
 
 Run:
 
@@ -290,14 +245,13 @@ python -m pytest tests -v
 
 - LLM-generated content can vary between runs
 - Resume–JD matching measures semantic similarity rather than actual ATS or recruiter decisions
-- LangChain and LangGraph are implemented at a **foundational level**, not as an advanced autonomous multi-agent architecture
 - Generated interview guidance should be reviewed by the candidate before use
 
 ---
 
 ## 🔐 Security
 
-Sensitive and generated development files are excluded from Git using `.gitignore`.
+Sensitive files and generated development files are excluded using `.gitignore`.
 
 Examples:
 

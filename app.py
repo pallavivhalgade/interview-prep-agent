@@ -7,8 +7,7 @@ from typing import Any
 import streamlit as st
 from markdown import markdown
 
-from src.agent import analyze_skill_gap
-from src.graph import run_graph_pipeline
+from src.agent import analyze_skill_gap, run_pipeline
 from src.parser import extract_resume_text
 from src.utils import compute_match_score
 
@@ -5835,7 +5834,7 @@ def show_workspace() -> None:
                             + ", ".join(missing_for_focus)
                         )
 
-                result = run_graph_pipeline(
+                result = run_pipeline(
                     jd_text,
                     focus_context=focus_context,
                 )
